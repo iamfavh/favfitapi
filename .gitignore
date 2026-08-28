@@ -1,5 +1,2 @@
-FavFitApi/*.http
-FavFitApi/Properties/
-FavFitApi/appsettings.*.json
-FavFitApi/bin/
-FavFitApi/obj/ 
+.vscode/
+dotnet/
