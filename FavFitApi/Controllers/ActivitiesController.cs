@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using FavFitApi.Models;
 using FavFitApi.Data;
+using FavFitApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
@@ -14,11 +15,13 @@ public class ActivitiesController : ControllerBase
 {
     private readonly FavFitdbContext _context;
     private readonly ActivityMapper _activityMapper;
+    private readonly FitImportService _fitImportService;
 
-    public ActivitiesController(FavFitdbContext context, ActivityMapper activityMapper)
+    public ActivitiesController(FavFitdbContext context, ActivityMapper activityMapper, FitImportService fitImportService)
     {
         _context = context;
         _activityMapper = activityMapper;
+        _fitImportService = fitImportService;
     }
 
     [HttpPost]
@@ -48,6 +51,44 @@ public class ActivitiesController : ControllerBase
         var response = _activityMapper.AcitivtyToActivityDto(newActivity);
 
         return CreatedAtAction(nameof(GetActivityById), new {id = newActivity.Id}, response); 
+    }
+
+    [HttpPost("import-fit")]
+    [Consumes("multipart/form-data")]
+    [EndpointSummary("Imports an activity from a .FIT file")]
+    [EndpointDescription("Upload a .FIT file (max 20 MB) as multipart/form-data in a field named 'file'. Values are stored in FIT units: distance and elevation gain in meters, average speed in meters/second.")]
+    public async Task<ActionResult<ActivityDto>> ImportFitActivity(IFormFile file)
+    {
+        string? userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!long.TryParse(userId, out var parsedUserId))
+            return Unauthorized("Not authorized to perform that request");
+
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        if (!await _context.Users.AnyAsync(u => u.Id == parsedUserId))
+            return Unauthorized("Not authorized to perform that request");
+
+        if (file.Length > FitImportService.MaxFileSizeBytes)
+            return BadRequest("The FIT file must be 20 MB or smaller.");
+
+        await using var fitStream = new MemoryStream();
+        await file.CopyToAsync(fitStream);
+        fitStream.Position = 0;
+
+        var result = _fitImportService.Import(fitStream, parsedUserId);
+
+        if (result.Activity == null)
+            return BadRequest(result.Error);
+
+        await _context.Activities.AddAsync(result.Activity);
+
+        await _context.SaveChangesAsync();
+
+        var response = _activityMapper.AcitivtyToActivityDto(result.Activity);
+
+        return CreatedAtAction(nameof(GetActivityById), new {id = result.Activity.Id}, response);
     }
 
     [HttpGet]
