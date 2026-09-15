@@ -57,7 +57,7 @@ public class TokenService
         );
     }
 
-    public ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
+    public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
     {
         var tokenValidationParameters = new TokenValidationParameters
         {
@@ -79,7 +79,7 @@ public class TokenService
 
             if (!(securityToken is JwtSecurityToken jwtSecurityToken) || 
             !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
-            return null!;
+            return null;
 
             return principal;
         } 
@@ -88,7 +88,7 @@ public class TokenService
             ex is SecurityTokenException ||
             ex is ArgumentException)
         {
-            return null!;
+            return null;
         }
     
     }
