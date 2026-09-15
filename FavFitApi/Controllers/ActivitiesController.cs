@@ -7,6 +7,7 @@ using System.Security.Claims;
 
 namespace FavFitApi.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class ActivitiesController : ControllerBase
@@ -20,7 +21,6 @@ public class ActivitiesController : ControllerBase
         _activityMapper = activityMapper;
     }
 
-    [Authorize]
     [HttpPost]
     [EndpointSummary("Creates an activity")]
     [EndpointDescription("Activity Type Options: Bike = 1, Run = 2, Hike = 3, Walk = 4, Swim = 5, WeightLifting = 6")]
@@ -40,16 +40,16 @@ public class ActivitiesController : ControllerBase
             return Unauthorized("Not authorized to perform that request");
 
         var newActivity = _activityMapper.CreateActivityToActivity(request);
-        var response =_activityMapper.AcitivtyToActivityDto(newActivity);
 
         await _context.Activities.AddAsync(newActivity);
 
         await _context.SaveChangesAsync();
 
+        var response = _activityMapper.AcitivtyToActivityDto(newActivity);
+
         return CreatedAtAction(nameof(GetActivityById), new {id = newActivity.Id}, response); 
     }
 
-    [Authorize]
     [HttpGet]
     [Route("{id}")]
     [EndpointSummary("Returns an activity")]
@@ -63,14 +63,13 @@ public class ActivitiesController : ControllerBase
         var existingActivity = await _context.Activities.FindAsync(id);
 
         if (existingActivity == null || userId != existingActivity.UserId.ToString())
-            return Unauthorized("Not authorized to perform that request");
+            return NotFound();
         
         var activityDto = _activityMapper.AcitivtyToActivityDto(existingActivity);
         
         return activityDto;
     }
 
-    [Authorize]
     [HttpPatch]
     [EndpointSummary("Updates an activity")]
     public async Task<ActionResult<UpdateActivityDto>> UpdateActivity(UpdateActivityDto request)
@@ -83,28 +82,27 @@ public class ActivitiesController : ControllerBase
         var existingActivity = await _context.Activities.FindAsync(request.Id);
 
         if (existingActivity == null || userId != existingActivity.UserId.ToString())
-            return Unauthorized("Not authorized to perform that request");
+            return NotFound();
         
         if (request.NewTitle != null)
             existingActivity.Title = request.NewTitle;
         
-        existingActivity.Type = request.NewType;
-        existingActivity.Date = request.NewDate;
-        existingActivity.ElapsedTime = request.NewElapsedTime;
-        existingActivity.Distance = request.NewDistance;
-        existingActivity.AverageSpeed = request.NewAverageSpeed;
-        existingActivity.AverageCadence = request.NewAverageCadence;
-        existingActivity.AveragePace = request.NewAveragePace;
-        existingActivity.AverageHeartRate = request.NewAverageHeartRate;
-        existingActivity.ElevationGain = request.NewElevationGain;
-        existingActivity.Calories = request.NewCalories;
+        existingActivity.Type = request.NewType ?? existingActivity.Type;
+        existingActivity.Date = request.NewDate is { } newDate ? ActivityMapper.ToUtc(newDate) : existingActivity.Date;
+        existingActivity.ElapsedTime = request.NewElapsedTime ?? existingActivity.ElapsedTime;
+        existingActivity.Distance = request.NewDistance ?? existingActivity.Distance;
+        existingActivity.AverageSpeed = request.NewAverageSpeed ?? existingActivity.AverageSpeed;
+        existingActivity.AverageCadence = request.NewAverageCadence ?? existingActivity.AverageCadence;
+        existingActivity.AveragePace = request.NewAveragePace ?? existingActivity.AveragePace;
+        existingActivity.AverageHeartRate = request.NewAverageHeartRate ?? existingActivity.AverageHeartRate;
+        existingActivity.ElevationGain = request.NewElevationGain ?? existingActivity.ElevationGain;
+        existingActivity.Calories = request.NewCalories ?? existingActivity.Calories;
         
         await _context.SaveChangesAsync();
 
         return NoContent();
     }
 
-    [Authorize]
     [HttpDelete]
     [EndpointSummary("Deletes an activity")]
     public async Task<ActionResult> DeleteActivity(long id)
@@ -117,7 +115,7 @@ public class ActivitiesController : ControllerBase
         var existingActivity = await _context.Activities.FindAsync(id);
 
         if (existingActivity == null || userId != existingActivity.UserId.ToString())
-            return Unauthorized("Not authorized to perform that request");
+            return NotFound();
         
         _context.Activities.Remove(existingActivity);
 
